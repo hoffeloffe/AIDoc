@@ -1,0 +1,57 @@
+{
+  "javascript": [
+    "Use camelCase for variable and function names.",
+    "Use PascalCase for class names and component names.",
+    "Use descriptive variable names that explain the purpose of the variable.",
+    "Add comments for complex logic or non-obvious code.",
+    "Use async/await instead of raw promises when possible.",
+    "Prefer const over let when variables don't need to be reassigned.",
+    "Use template literals instead of string concatenation.",
+    "Use destructuring for objects and arrays when appropriate.",
+    "Avoid deeply nested code blocks and keep functions small and focused."
+  ],
+  "python": [
+    "Follow PEP 8 style guide.",
+    "Use snake_case for variable and function names.",
+    "Use PascalCase for class names.",
+    "Use docstrings for functions, classes, and modules.",
+    "Use type hints for function parameters and return values.",
+    "Use list comprehensions instead of map/filter when appropriate.",
+    "Avoid global variables.",
+    "Handle exceptions properly with try/except blocks.",
+    "Use context managers (with statement) for resource management."
+  ],
+  "java": [
+    "Use camelCase for variable and method names.",
+    "Use PascalCase for class names.",
+    "Use ALL_CAPS for constants.",
+    "Add JavaDoc comments for public methods and classes.",
+    "Follow the principle of encapsulation (private fields, public getters/setters).",
+    "Handle exceptions properly with try/catch blocks.",
+    "Use interfaces for abstraction.",
+    "Follow the SOLID principles.",
+    "Use StringBuilder for string concatenation in loops."
+  ],
+  "cpp": [
+    "Use snake_case for variable and function names.",
+    "Use PascalCase for class names.",
+    "Use ALL_CAPS for constants and macros.",
+    "Add comments for complex logic or non-obvious code.",
+    "Use const whenever possible.",
+    "Prefer references over pointers when appropriate.",
+    "Use smart pointers instead of raw pointers.",
+    "Handle exceptions properly with try/catch blocks.",
+    "Follow the Rule of Three/Five/Zero."
+  ],
+  "general": [
+    "Write clear, self-documenting code.",
+    "Keep functions small and focused on a single task.",
+    "Avoid code duplication (DRY principle).",
+    "Use meaningful variable and function names.",
+    "Add comments for complex logic or non-obvious code.",
+    "Handle edge cases and errors properly.",
+    "Write unit tests for your code.",
+    "Follow consistent formatting and style.",
+    "Optimize for readability and maintainability."
+  ]
+}
