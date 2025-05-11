@@ -2,7 +2,7 @@
 
 AI Doc is a web-based tool that helps developers generate meaningful documentation for their code using artificial intelligence, with a clean, modern interface inspired by DeepSeek Chat.
 
-![AI Doc Screenshot](public/aidoc-screenshot.png)
+![AI Doc Screenshot](AIDoc-screenshot.png)
 
 ## Features
 
