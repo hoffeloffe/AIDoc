@@ -67,7 +67,7 @@ AI Doc is a web-based tool that helps developers generate meaningful documentati
 - **React**: Frontend library
 - **TypeScript**: Type-safe JavaScript
 - **Tailwind CSS**: Utility-first CSS framework
-- **Monaco Editor**: Code editor component
+- **Windsurf**: Code editor
 - **DeepSeek API**: AI code analysis and documentation generation
 
 ## Contributing
