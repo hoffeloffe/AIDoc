@@ -39,21 +39,16 @@ export const showTemporaryNotification = (
  * @param error The error object
  * @returns A human-readable error message
  */
-export const getErrorMessage = (error: any): string => {
+export const getErrorMessage = (error: unknown): string => {
   if (typeof error === 'string') return error;
-  
-  if (error.response?.data?.details) {
-    return error.response.data.details;
+
+  if (error && typeof error === 'object') {
+    const err = error as { response?: { data?: { details?: string; error?: string } }; message?: string };
+    if (err.response?.data?.details) return err.response.data.details;
+    if (err.response?.data?.error) return err.response.data.error;
+    if (err.message) return err.message;
   }
-  
-  if (error.response?.data?.error) {
-    return error.response.data.error;
-  }
-  
-  if (error.message) {
-    return error.message;
-  }
-  
+
   return 'An unknown error occurred';
 };
 

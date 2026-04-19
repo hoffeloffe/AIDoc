@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { ICON_BY_ID } from '@/config/languages';
+import { formatRelativeTime } from '@/utils/documentationUtils';
 
 // =========== TYPES AND INTERFACES ===========
 
@@ -39,16 +41,6 @@ interface SidebarViewProps extends SidebarProps {
 
 // =========== CONSTANTS ===========
 
-const LANGUAGE_ICONS: Record<string, string> = {
-  javascript: '🟨',
-  typescript: '🔷',
-  python: '🐍',
-  java: '☕',
-  html: '🌐',
-  css: '🎨',
-  markdown: '📝',
-};
-
 const SORT_OPTIONS: { id: SortOption; label: string }[] = [
   { id: 'newest', label: 'Newest First' },
   { id: 'oldest', label: 'Oldest First' },
@@ -63,33 +55,10 @@ const DEFAULT_ICON = '📄';
 
 const getLanguageIcon = (language?: string): string => {
   if (!language) return DEFAULT_ICON;
-  
-  const langKey = Object.keys(LANGUAGE_ICONS).find(key => 
-    language.toLowerCase().includes(key)
-  );
-  
-  return langKey ? LANGUAGE_ICONS[langKey] : DEFAULT_ICON;
-};
-
-const formatRelativeTime = (date: Date): string => {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  
-  const diffSec = Math.floor(diffMs / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHour = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHour / 24);
-
-  if (diffDay > 0) {
-    return diffDay === 1 ? 'Yesterday' : `${diffDay} days ago`;
-  }
-  if (diffHour > 0) {
-    return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
-  }
-  if (diffMin > 0) {
-    return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
-  }
-  return 'Just now';
+  const key = language.toLowerCase();
+  if (ICON_BY_ID[key]) return ICON_BY_ID[key];
+  const match = Object.keys(ICON_BY_ID).find(id => key.includes(id));
+  return match ? ICON_BY_ID[match] : DEFAULT_ICON;
 };
 
 // =========== CONTAINER COMPONENT ===========
