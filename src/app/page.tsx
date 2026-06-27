@@ -11,6 +11,10 @@ import { generateId, createTimestamp, createNewDocPage, extractTitleFromDocument
 import { showTemporaryNotification as showNotification, getErrorMessage } from '../utils/uiUtils';
 import { generateDocumentation, getApiKey, saveApiKey } from '../utils/apiUtils';
 import { downloadAsFile, formatDocumentationForExport } from '../utils/exportUtils';
+import { LANGUAGES, LANG_BY_EXT } from '../config/languages';
+import { useDebouncedLanguage } from '../hooks/useDebouncedLanguage';
+
+const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 export default function Home() {
   // State for API key
@@ -27,24 +31,8 @@ export default function Home() {
   const [showMobileLanguageDropdown, setShowMobileLanguageDropdown] = useState(false);
   const [showDesktopLanguageDropdown, setShowDesktopLanguageDropdown] = useState(false);
   
-  // Supported programming languages with their icons and Monaco editor IDs
-  const SUPPORTED_LANGUAGES = [
-    { id: 'javascript', name: 'JavaScript', monaco: 'javascript' },
-    { id: 'typescript', name: 'TypeScript', monaco: 'typescript' },
-    { id: 'python', name: 'Python', monaco: 'python' },
-    { id: 'java', name: 'Java', monaco: 'java' },
-    { id: 'csharp', name: 'C#', monaco: 'csharp' },
-    { id: 'cpp', name: 'C++', monaco: 'cpp' },
-    { id: 'go', name: 'Go', monaco: 'go' },
-    { id: 'rust', name: 'Rust', monaco: 'rust'},
-    { id: 'php', name: 'PHP', monaco: 'php' },
-    { id: 'ruby', name: 'Ruby', monaco: 'ruby'},
-    { id: 'swift', name: 'Swift', monaco: 'swift' },
-    { id: 'kotlin', name: 'Kotlin', monaco: 'kotlin' },
-    { id: 'html', name: 'HTML', monaco: 'html' },
-    { id: 'css', name: 'CSS', monaco: 'css' },
-  ];
-  
+  const SUPPORTED_LANGUAGES = LANGUAGES;
+
   // State for documentation pages (similar to DeepSeek Chat)
   const [docPages, setDocPages] = useState<DocPage[]>([]);
   const [activePageId, setActivePageId] = useState<string | null>(null);
@@ -77,14 +65,16 @@ export default function Home() {
     setActivePageId(initialId);
   }, []);
 
-  // Update detected language when code changes
+  const { language: debouncedLanguage, monaco: debouncedMonaco } = useDebouncedLanguage(sourceCode);
+
   useEffect(() => {
-    if (sourceCode.trim()) {
-      const language = detectLanguage(sourceCode);
-      setDetectedLanguage(language);
-      setMonacoLanguage(getMonacoLanguage(language));
+    if (!sourceCode.trim()) return;
+    setDetectedLanguage(debouncedLanguage);
+    setMonacoLanguage(debouncedMonaco);
+    if (activePageId) {
+      handlePageUpdate(activePageId, { language: debouncedLanguage });
     }
-  }, [sourceCode]);
+  }, [debouncedLanguage, debouncedMonaco]);
   
   // Add keyboard shortcut support and click outside handler
   useEffect(() => {
@@ -120,34 +110,15 @@ export default function Home() {
     };
   }, [error, sourceCode, showMobileLanguageDropdown, showDesktopLanguageDropdown]);
 
-  // Handle code change
   const handleCodeChange = (value: string | undefined) => {
     const newCode = value || '';
-    // Ensure we always have a string to avoid TypeScript errors
     setSourceCode(newCode);
-    
-    // Update the active document with the new code
+
     if (activePageId) {
       handlePageUpdate(activePageId, { code: newCode });
     }
-    
-    // Only detect language if we have enough code to analyze
-    if (newCode.trim().length > 30) {
-      // Use the language detection utility to auto-detect the language
-      const detectedLang = detectLanguage(newCode);
-      if (detectedLang !== 'general') {
-        setDetectedLanguage(detectedLang);
-        setMonacoLanguage(getMonacoLanguage(detectedLang));
-        
-        // If there's an active page, update its language
-        if (activePageId) {
-          handlePageUpdate(activePageId, {
-            language: detectedLang
-          });
-        }
-      }
-    } else if (newCode.trim() === '') {
-      // Reset to JavaScript for empty input
+
+    if (newCode.trim() === '') {
       setDetectedLanguage('javascript');
       setMonacoLanguage('javascript');
     }
@@ -258,7 +229,7 @@ export default function Home() {
         
         displayNotification('Documentation generated successfully');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error generating documentation:', err);
       setError(getErrorMessage(err));
     } finally {
@@ -282,44 +253,30 @@ export default function Home() {
   const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File too large. Maximum size is 2MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     try {
       const content = await readFileContent(file);
       setSourceCode(content);
-      
-      // Auto-detect language from file extension
+
       const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-      const languageMap: Record<string, string> = {
-        'js': 'javascript',
-        'ts': 'typescript',
-        'py': 'python',
-        'java': 'java',
-        'cs': 'csharp',
-        'cpp': 'cpp',
-        'go': 'go',
-        'rs': 'rust',
-        'php': 'php',
-        'rb': 'ruby',
-        'swift': 'swift',
-        'kt': 'kotlin',
-        'html': 'html',
-        'css': 'css'
-      };
-      
-      const detectedLang = languageMap[fileExtension] || detectLanguage(content);
+      const detectedLang = LANG_BY_EXT[fileExtension] || detectLanguage(content);
       setDetectedLanguage(detectedLang);
       setMonacoLanguage(getMonacoLanguage(detectedLang));
-      
-      // Show notification
+
       setNotificationMessage(`File ${file.name} loaded successfully`);
       setShowNotification(true);
       setTimeout(() => setShowNotification(false), 3000);
-      
-      // Reset file input
+
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-    } catch (err) {
+    } catch (err: unknown) {
       setError(`Error reading file: ${err instanceof Error ? err.message : String(err)}`);
     }
   };

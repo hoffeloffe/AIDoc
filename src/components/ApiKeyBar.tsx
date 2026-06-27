@@ -37,7 +37,7 @@ const ApiKeyBar: React.FC<ApiKeyBarProps> = ({ apiKey, onSaveApiKey }) => {
       setTimeout(() => {
         setMessage(null);
       }, 3000);
-    } catch (error) {
+    } catch (error: unknown) {
       setMessage({ text: 'Failed to save API key', type: 'error' });
     } finally {
       setIsSaving(false);
@@ -51,9 +51,9 @@ const ApiKeyBar: React.FC<ApiKeyBarProps> = ({ apiKey, onSaveApiKey }) => {
     setMessage(null);
   };
 
-  const getMaskedKey = () => {
-    if (!apiKey) return '';
-    return apiKey.substring(0, 3) + '•'.repeat(apiKey.length - 6) + apiKey.substring(apiKey.length - 3);
+  const getMaskedKey = (key: string) => {
+    if (key.length <= 6) return '•'.repeat(key.length);
+    return key.slice(0, 3) + '•'.repeat(key.length - 6) + key.slice(-3);
   };
 
   return (
@@ -93,7 +93,7 @@ const ApiKeyBar: React.FC<ApiKeyBarProps> = ({ apiKey, onSaveApiKey }) => {
             <div className="flex items-center">
               {apiKey ? (
                 <div className="font-mono text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded border border-gray-200 dark:border-gray-600">
-                  {getMaskedKey()}
+                  {getMaskedKey(apiKey)}
                 </div>
               ) : (
                 <div className="text-sm text-gray-500 dark:text-gray-400 italic">

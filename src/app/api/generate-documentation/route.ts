@@ -1,119 +1,100 @@
 import { NextResponse } from 'next/server';
-import { detectLanguage } from '../../../utils/languageDetection';
-import { generateDocumentation as generateDocs } from '../../../utils/codeHelper';
-
-// Import coding standards using require to avoid TypeScript issues
-const codingStandards = require('../../../data/coding_standards.json');
+import { z } from 'zod';
+import axios from 'axios';
+import { detectLanguage } from '@/utils/languageDetection';
+import { generateDocumentation as generateDocs } from '@/utils/codeHelper';
+import codingStandards from '@/data/coding_standards.json';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-/**
- * API endpoint for generating code documentation using DeepSeek AI
- * @route POST /api/generate-documentation
- */
+const BodySchema = z.object({
+  code: z.string().min(1, 'Code is required').max(100_000, 'Code too large'),
+  language: z.string().optional(),
+  apiKey: z.string().min(10).max(200),
+  standards: z.string().max(10_000).optional(),
+});
+
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW = 60_000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(request: Request) {
-  /**
-   * Main POST handler for documentation generation
-   * @param {string} code - The source code to document
-   * @param {string} language - The programming language of the code
-   */
-  try {
-    const { code, language: clientLanguage, apiKey: clientApiKey } = await request.json();
-    
-    // Validate API key is present
-    if (!clientApiKey) {
-      console.error('API key is missing from request');
-      return NextResponse.json(
-        { 
-          error: 'API configuration error', 
-          details: 'DeepSeek API key is missing. Please add your API key in the settings.'
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!code) {
-      return NextResponse.json(
-        { error: 'Code is required' },
-        { status: 400 }
-      );
-    }
-
-    // Use client-provided language or detect from code
-    const language = clientLanguage || detectLanguage(code);
-    
-    // Get relevant coding standards from local JSON file
-    const standards = (codingStandards as Record<string, string[]>)[language] || 
-                     (codingStandards as Record<string, string[]>)['general'] || [];
-
-    try {
-      // Use the extracted utility function to generate documentation
-      const result = await generateDocs({
-        code,
-        language,
-        apiKey: clientApiKey, // Use the client-provided API key
-        apiUrl: DEEPSEEK_API_URL,
-        codingStandards: standards
-      });
-      
-      // Return the processed response
-      return NextResponse.json({
-        documentation: result.documentation,
-        improvedCode: result.improvedCode,
-        originalCode: result.originalCode,
-        language,
-      });
-    } catch (apiError: any) {
-      console.error('API Error:', apiError.message);
-      
-      // Handle API-specific errors
-      let errorMessage = 'Failed to generate documentation';
-      let errorDetails = 'Please try again later';
-      let errorStatus = 500;
-      
-      // Check if it's a rate limiting error
-      if (apiError.response?.status === 429) {
-        errorMessage = 'Rate limit exceeded';
-        errorDetails = 'Too many requests. Please try again in a few minutes.';
-        errorStatus = 429;
-      }
-      // Check if it's an authentication error
-      else if (apiError.response?.status === 401) {
-        errorMessage = 'API authentication failed';
-        errorDetails = 'Invalid API key. Please check your DeepSeek API key.';
-        errorStatus = 401;
-      }
-      // Check if it's a bad request
-      else if (apiError.response?.status === 400) {
-        errorMessage = 'Invalid request to AI service';
-        errorDetails = apiError.response?.data?.error?.message || 'Please check your input and try again.';
-        errorStatus = 400;
-      }
-      
-      return NextResponse.json(
-        { 
-          error: errorMessage, 
-          details: errorDetails,
-          status: errorStatus,
-          timestamp: new Date().toISOString()
-        },
-        { status: errorStatus }
-      );
-    }
-  } catch (error: any) {
-    // Handle general errors
-    console.error('General Error:', error);
-    
-    const errorStatus = 500;
-    
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!checkRateLimit(ip)) {
     return NextResponse.json(
-      { 
-        error: 'Generation failed', 
-        message: error.message || 'Unknown error',
-        status: errorStatus,
-        timestamp: new Date().toISOString()
-      }, 
-      { status: errorStatus }
+      { error: 'Too many requests. Try again in a minute.' },
+      { status: 429 }
     );
+  }
+
+  const rawBody = await request.json().catch(() => null);
+  const parsed = BodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Invalid request', details: parsed.error.issues },
+      { status: 400 }
+    );
+  }
+  const { code, language: clientLanguage, apiKey, standards: clientStandards } = parsed.data;
+
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'API key is missing. Please add your API key in the settings.' },
+      { status: 401 }
+    );
+  }
+
+  const language = clientLanguage || detectLanguage(code);
+
+  const standardsMap = codingStandards as Record<string, string[]>;
+  const baseStandards = standardsMap[language] || standardsMap['general'] || [];
+  const standards = clientStandards ? [...baseStandards, clientStandards] : baseStandards;
+
+  try {
+    const result = await generateDocs({
+      code,
+      language,
+      apiKey,
+      apiUrl: DEEPSEEK_API_URL,
+      codingStandards: standards,
+    });
+
+    return NextResponse.json({
+      documentation: result.documentation,
+      improvedCode: result.improvedCode,
+      originalCode: result.originalCode,
+      language,
+    });
+  } catch (apiError: unknown) {
+    const logMessage = apiError instanceof Error ? apiError.message : 'Unknown';
+    console.error('DeepSeek API error:', logMessage);
+
+    let statusCode = 500;
+    let message = 'Documentation generation failed. Please try again.';
+
+    if (axios.isAxiosError(apiError)) {
+      const status = apiError.response?.status;
+      if (status === 429) {
+        statusCode = 429;
+        message = 'Rate limited by AI provider. Please wait a moment.';
+      } else if (status === 401) {
+        statusCode = 401;
+        message = 'Invalid API key.';
+      }
+    }
+
+    return NextResponse.json({ error: message }, { status: statusCode });
   }
 }

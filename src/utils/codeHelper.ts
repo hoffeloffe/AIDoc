@@ -175,8 +175,9 @@ export async function generateDocumentation(options: DocGenerationOptions): Prom
       improvedCode: finalImprovedCode,
       originalCode: code
     };
-  } catch (error: any) {
-    console.error('Error generating documentation:', error);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error generating documentation:', message);
     throw error;
   }
 }
